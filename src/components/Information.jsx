@@ -6,10 +6,10 @@ export default function Information(props) {
     const { output, finished } = props
     const [tab, setTab] = useState('transcription')
     const [translation, setTranslation] = useState(null)
+    const [translationError, setTranslationError] = useState(null)
     const [toLanguage, setToLanguage] = useState('eng_Latn')
     const [fromLanguage, setFromLanguage] = useState('arb_Arab')
     const [translating, setTranslating] = useState(null)
-    const autoTranslated = useRef(false)
 
     const worker = useRef()
 
@@ -23,14 +23,20 @@ export default function Information(props) {
         const onMessageReceived = async (e) => {
             switch (e.data.status) {
                 case 'initiate':
+                    setTranslationError(null)
                     break;
                 case 'progress':
                     break;
                 case 'update':
+                    setTranslationError(null)
                     setTranslation(e.data.output)
                     break;
                 case 'complete':
                     setTranslating(false)
+                    break;
+                case 'error':
+                    setTranslating(false)
+                    setTranslationError(e.data.message || 'Translation failed.')
                     break;
             }
         }
@@ -39,18 +45,6 @@ export default function Information(props) {
 
         return () => worker.current.removeEventListener('message', onMessageReceived)
     })
-
-    useEffect(() => {
-        if (finished && output && fromLanguage !== 'eng_Latn' && !autoTranslated.current) {
-            autoTranslated.current = true
-            setTranslating(true)
-            worker.current.postMessage({
-                text: output.map(val => val.text),
-                src_lang: fromLanguage,
-                tgt_lang: 'eng_Latn'
-            })
-        }
-    }, [finished, output, fromLanguage])
 
     useEffect(() => {
         if (translation) {
@@ -79,6 +73,7 @@ export default function Information(props) {
         }
 
         setTranslating(true)
+        setTranslationError(null)
 
         worker.current.postMessage({
             text: output.map(val => val.text),
@@ -119,15 +114,22 @@ export default function Information(props) {
                     </div>
 
                     <div className='p-5 sm:p-6'>
-                        {translating ? (
+                        {tab === 'transcription' ? (
+                            <Transcription {...props} textElement={textElement} />
+                        ) : translating ? (
                             <div className='flex items-center justify-center py-12'>
-                                <div className='flex flex-col items-center gap-3'>
+                                <div className='flex flex-col items-center gap-3 text-center'>
                                     <i className="fa-solid fa-spinner animate-spin text-blue-400 text-xl"></i>
                                     <p className='text-sm text-slate-400'>Translating to English...</p>
+                                    {translationError && (
+                                        <p className='text-sm text-red-500 max-w-sm'>{translationError}</p>
+                                    )}
                                 </div>
                             </div>
-                        ) : tab === 'transcription' ? (
-                            <Transcription {...props} textElement={textElement} />
+                        ) : translationError ? (
+                            <div className='text-center py-8'>
+                                <p className='text-sm text-red-500'>{translationError}</p>
+                            </div>
                         ) : (
                             <Translation
                                 {...props}
