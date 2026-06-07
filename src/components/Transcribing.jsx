@@ -1,5 +1,5 @@
 export default function Transcribing(props) {
-    const { stage, downloadProgress } = props
+    const { stage, downloadProgress, transcriptionProgress, liveTranscript, elapsedSeconds } = props
 
     const stageMessages = {
         decoding: { title: 'Preparing', subtitle: 'Decoding audio file...' },
@@ -23,6 +23,15 @@ export default function Transcribing(props) {
         : 0
 
     const hasTotal = downloadProgress && downloadProgress.total > 0
+    const transcriptionPct = transcriptionProgress?.percent || 0
+    const transcriptionHasTotal = transcriptionProgress && transcriptionProgress.total > 0
+
+    const formatElapsed = (seconds) => {
+        const mins = Math.floor(seconds / 60)
+        const secs = seconds % 60
+        if (mins === 0) return `${secs}s`
+        return `${mins}m ${secs.toString().padStart(2, '0')}s`
+    }
 
     return (
         <div className='flex items-center flex-1 flex-col justify-center gap-8 text-center pb-24 p-4'>
@@ -57,7 +66,36 @@ export default function Transcribing(props) {
                 </div>
             )}
 
-            {stage !== 'downloading' && (
+            {stage === 'processing' && (
+                <div className='w-full max-w-2xl space-y-4'>
+                    <div className='space-y-2'>
+                        <div className='flex items-center justify-between text-xs text-slate-400 font-medium'>
+                            <span>{transcriptionProgress ? `${transcriptionPct}% complete` : 'Working...'}</span>
+                            <span>{formatElapsed(elapsedSeconds)}</span>
+                        </div>
+                        <div className='h-2.5 bg-slate-100 rounded-full overflow-hidden'>
+                            <div
+                                className='h-full bg-gradient-to-r from-blue-400 to-indigo-500 rounded-full transition-all duration-300 ease-out'
+                                style={{ width: `${Math.max(transcriptionPct, 3)}%` }}
+                            ></div>
+                        </div>
+                        {transcriptionHasTotal && (
+                            <p className='text-xs text-slate-300'>
+                                Chunk {transcriptionProgress.current} / {transcriptionProgress.total}
+                            </p>
+                        )}
+                    </div>
+
+                    <div className='rounded-2xl border border-slate-100 bg-slate-50 p-4 text-left'>
+                        <p className='text-xs font-medium text-slate-400 uppercase tracking-wider mb-2'>Live draft</p>
+                        <p className='text-sm text-slate-700 leading-relaxed whitespace-pre-wrap min-h-[5rem]'>
+                            {liveTranscript || 'Waiting for the first chunk...'}
+                        </p>
+                    </div>
+                </div>
+            )}
+
+            {stage !== 'downloading' && stage !== 'processing' && (
                 <div className='flex flex-col gap-2 sm:gap-3 w-full max-w-[300px] mx-auto'>
                     {[0, 1, 2].map(val => (
                         <div key={val} className={'rounded-full h-2 bg-gradient-to-r from-blue-400 to-indigo-500 loading loading' + val}></div>

@@ -42,13 +42,13 @@ class MyTranscriptionPipeline {
 }
 
 self.addEventListener('message', async (event) => {
-    const { type, audio, model_name, language, transcription_settings } = event.data
+    const { type, audio, model_name, language, transcription_settings, estimated_chunks } = event.data
     if (type === MessageTypes.INFERENCE_REQUEST) {
-        await transcribe(audio, model_name, language, transcription_settings)
+        await transcribe(audio, model_name, language, transcription_settings, estimated_chunks)
     }
 })
 
-async function transcribe(audio, model_name, language, transcription_settings) {
+async function transcribe(audio, model_name, language, transcription_settings, estimatedChunks) {
     sendLoadingMessage('loading')
 
     let transcriber
@@ -76,12 +76,24 @@ async function transcribe(audio, model_name, language, transcription_settings) {
 
     let result
     try {
+        let processedChunks = 0
         const options = {
             chunk_length_s: transcription_settings?.chunk_length_s ?? 20,
             stride_length_s: transcription_settings?.stride_length_s ?? 4,
             task: 'transcribe',
             no_repeat_ngram_size: transcription_settings?.no_repeat_ngram_size ?? 3,
             repetition_penalty: transcription_settings?.repetition_penalty ?? 1.15,
+            chunk_callback: (chunk) => {
+                processedChunks += 1
+                const partialText = transcriber.tokenizer.decode(chunk.tokens, { skip_special_tokens: true })
+                self.postMessage({
+                    type: MessageTypes.RESULT_PARTIAL,
+                    current: processedChunks,
+                    total: estimatedChunks || 0,
+                    text: partialText,
+                    is_last: chunk.is_last
+                })
+            }
         }
 
         if (language) {

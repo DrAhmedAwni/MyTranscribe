@@ -13,6 +13,10 @@ function App() {
   const [output, setOutput] = useState(null)
   const [stage, setStage] = useState('idle')
   const [downloadProgress, setDownloadProgress] = useState(null)
+  const [transcriptionProgress, setTranscriptionProgress] = useState(null)
+  const [liveTranscript, setLiveTranscript] = useState('')
+  const [elapsedSeconds, setElapsedSeconds] = useState(0)
+  const [transcriptionStartedAt, setTranscriptionStartedAt] = useState(null)
   const [finished, setFinished] = useState(false)
   const [error, setError] = useState(null)
 
@@ -25,6 +29,10 @@ function App() {
     setOutput(null)
     setStage('idle')
     setDownloadProgress(null)
+    setTranscriptionProgress(null)
+    setLiveTranscript('')
+    setElapsedSeconds(0)
+    setTranscriptionStartedAt(null)
     setFinished(false)
     setError(null)
   }
@@ -59,6 +67,20 @@ function App() {
         case 'RESULT':
           setOutput(e.data.results)
           break;
+        case 'RESULT_PARTIAL':
+          setTranscriptionProgress({
+            current: e.data.current,
+            total: e.data.total,
+            percent: e.data.total > 0 ? Math.round((e.data.current / e.data.total) * 100) : 0
+          })
+          setLiveTranscript(prev => {
+            const nextChunk = (e.data.text || '').trim()
+            if (!nextChunk) {
+              return prev
+            }
+            return prev ? `${prev} ${nextChunk}`.replace(/\s+/g, ' ').trim() : nextChunk
+          })
+          break;
         case 'INFERENCE_DONE':
           setFinished(true)
           setStage('done')
@@ -74,6 +96,20 @@ function App() {
 
     return () => worker.current.removeEventListener('message', onMessageReceived)
   })
+
+  useEffect(() => {
+    if (!transcriptionStartedAt || stage === 'idle' || stage === 'done' || error || output) {
+      return
+    }
+
+    const updateElapsed = () => {
+      setElapsedSeconds(Math.max(0, Math.floor((Date.now() - transcriptionStartedAt) / 1000)))
+    }
+
+    updateElapsed()
+    const interval = setInterval(updateElapsed, 1000)
+    return () => clearInterval(interval)
+  }, [transcriptionStartedAt, stage, error, output])
 
   async function readAudioFrom(file) {
     const sampling_rate = 16000
@@ -166,6 +202,10 @@ function App() {
     if (!file && !audioStream) { return }
 
     setStage('decoding')
+    setTranscriptionStartedAt(Date.now())
+    setElapsedSeconds(0)
+    setTranscriptionProgress(null)
+    setLiveTranscript('')
 
     let audioData
     try {
@@ -182,12 +222,14 @@ function App() {
     const transcriptionSettings = longRecording
       ? { chunk_length_s: 15, stride_length_s: 3, no_repeat_ngram_size: 4, repetition_penalty: 1.2 }
       : { chunk_length_s: 20, stride_length_s: 4, no_repeat_ngram_size: 3, repetition_penalty: 1.15 }
+    const estimatedChunks = estimateChunkCount(duration, transcriptionSettings.chunk_length_s, transcriptionSettings.stride_length_s)
 
     worker.current.postMessage({
       type: MessageTypes.INFERENCE_REQUEST,
       audio: audioData.audio,
       model_name,
       transcription_settings: transcriptionSettings,
+      estimated_chunks: estimatedChunks,
       language: languageHint === 'auto' ? null : languageHint
     })
   }
@@ -219,6 +261,19 @@ function App() {
     return audio
   }
 
+  function estimateChunkCount(duration, chunkLength, strideLength) {
+    if (!duration || duration <= chunkLength) {
+      return 1
+    }
+
+    const jump = chunkLength - (2 * strideLength)
+    if (jump <= 0) {
+      return 1
+    }
+
+    return Math.ceil((duration - chunkLength) / jump) + 1
+  }
+
   const showTranscribing = stage !== 'idle' && stage !== 'done' && !output
 
   return (
@@ -244,7 +299,13 @@ function App() {
       {output ? (
         <Information output={output} finished={finished} />
       ) : showTranscribing ? (
-        <Transcribing stage={stage} downloadProgress={downloadProgress} />
+        <Transcribing
+          stage={stage}
+          downloadProgress={downloadProgress}
+          transcriptionProgress={transcriptionProgress}
+          liveTranscript={liveTranscript}
+          elapsedSeconds={elapsedSeconds}
+        />
       ) : isAudioAvailable && !error ? (
         <FileDisplay
           handleFormSubmission={handleFormSubmission}
