@@ -182,7 +182,7 @@ function App() {
       )}
       <Header />
       {output ? (
-        <Information output={output} finished={finished} stage={stage} />
+        <Information output={output} finished={finished} />
       ) : showTranscribing ? (
         <Transcribing stage={stage} downloadProgress={downloadProgress} />
       ) : isAudioAvailable && !error ? (

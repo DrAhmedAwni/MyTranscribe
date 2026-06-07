@@ -3,14 +3,13 @@ import Transcription from './Transcription'
 import Translation from './Translation'
 
 export default function Information(props) {
-    const { output, finished, stage } = props
+    const { output, finished } = props
     const [tab, setTab] = useState('transcription')
     const [translation, setTranslation] = useState(null)
     const [toLanguage, setToLanguage] = useState('eng_Latn')
     const [fromLanguage, setFromLanguage] = useState('arb_Arab')
     const [translating, setTranslating] = useState(null)
     const autoTranslated = useRef(false)
-    const textEndRef = useRef(null)
 
     const worker = useRef()
 
@@ -59,12 +58,6 @@ export default function Information(props) {
         }
     }, [translation])
 
-    useEffect(() => {
-        if (textEndRef.current) {
-            textEndRef.current.scrollIntoView({ behavior: 'smooth' })
-        }
-    }, [output])
-
     const textElement = tab === 'transcription' ? output.map(val => val.text).join(' ') : translation || ''
 
     function handleCopy() {
@@ -103,15 +96,6 @@ export default function Information(props) {
                     <h1 className='font-bold text-3xl sm:text-4xl tracking-tight'>
                         Your <span className='gradient-text'>Result</span>
                     </h1>
-                    {isLive && (
-                        <div className='inline-flex items-center gap-2 mt-2 px-3 py-1.5 bg-blue-50 rounded-full'>
-                            <span className='relative flex h-2 w-2'>
-                                <span className='animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75'></span>
-                                <span className='relative inline-flex rounded-full h-2 w-2 bg-blue-500'></span>
-                            </span>
-                            <span className='text-xs font-semibold text-blue-600 tracking-wide'>Transcribing live...</span>
-                        </div>
-                    )}
                 </div>
 
                 <div className='card overflow-hidden'>
@@ -160,7 +144,6 @@ export default function Information(props) {
                                 generateTranslation={generateTranslation}
                             />
                         )}
-                        <div ref={textEndRef} />
                     </div>
 
                     {finished && !translating && textElement && (
