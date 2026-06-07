@@ -83,7 +83,7 @@ function App() {
       return decoded.getChannelData(0)
     } catch (err) {
       console.warn('Direct decode failed, using media element fallback:', err.message)
-      audioCTX.close()
+      await audioCTX.close()
       return await extractAudioViaMediaElement(file, sampling_rate)
     }
   }
@@ -108,13 +108,20 @@ function App() {
         }
 
         mediaRecorder.onstop = async () => {
-          const audioBlob = new Blob(chunks, { type: 'audio/webm' })
-          const ab = await audioBlob.arrayBuffer()
-          const decoded = await audioCtx.decodeAudioData(ab)
-          source.disconnect()
-          audioCtx.close()
-          URL.revokeObjectURL(url)
-          resolve(decoded.getChannelData(0))
+          try {
+            const audioBlob = new Blob(chunks, { type: 'audio/webm' })
+            const ab = await audioBlob.arrayBuffer()
+            const decoded = await audioCtx.decodeAudioData(ab)
+            source.disconnect()
+            await audioCtx.close()
+            URL.revokeObjectURL(url)
+            resolve(decoded.getChannelData(0))
+          } catch {
+            source.disconnect()
+            await audioCtx.close()
+            URL.revokeObjectURL(url)
+            reject(new Error('Failed to decode extracted audio. Try converting the file to MP3 or WAV.'))
+          }
         }
 
         const stop = () => {
@@ -129,7 +136,10 @@ function App() {
         }
 
         mediaRecorder.start()
-        audioEl.play()
+        audioEl.play().catch(() => {
+          URL.revokeObjectURL(url)
+          reject(new Error('Failed to play the media file for audio extraction. Try converting it to MP3 or WAV.'))
+        })
 
         setTimeout(() => { stop() }, (duration + 5) * 1000)
       }
@@ -149,7 +159,15 @@ function App() {
 
     setStage('decoding')
 
-    let audio = await readAudioFrom(file ? file : audioStream)
+    let audio
+    try {
+      audio = await readAudioFrom(file ? file : audioStream)
+    } catch (err) {
+      setError(err.message || 'Failed to decode this audio file. Try converting it to MP3 or WAV.')
+      setStage('idle')
+      return
+    }
+
     const model_name = `Xenova/whisper-base`
 
     worker.current.postMessage({

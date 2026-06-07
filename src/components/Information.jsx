@@ -87,8 +87,6 @@ export default function Information(props) {
         })
     }
 
-    const isLive = stage === 'processing' && !finished
-
     return (
         <main className='flex-1 flex flex-col items-center px-4 pb-20 pt-2'>
             <div className='w-full max-w-2xl'>

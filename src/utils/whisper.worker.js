@@ -2,6 +2,28 @@ import { pipeline, env } from '@xenova/transformers'
 import { MessageTypes } from './presets'
 
 env.allowLocalModels = false;
+env.backends.onnx.logLevel = 'error';
+
+const originalWarn = console.warn.bind(console)
+const originalError = console.error.bind(console)
+
+function isIgnoredRuntimeWarning(args) {
+    const message = args.map(arg => String(arg)).join(' ')
+    return message.includes('Unable to determine content-length from response headers')
+        || (message.includes('[W:onnxruntime') && message.includes('CleanUnusedInitializersAndNodeArgs'))
+}
+
+console.warn = (...args) => {
+    if (!isIgnoredRuntimeWarning(args)) {
+        originalWarn(...args)
+    }
+}
+
+console.error = (...args) => {
+    if (!isIgnoredRuntimeWarning(args)) {
+        originalError(...args)
+    }
+}
 
 
 class MyTranscriptionPipeline {
@@ -52,11 +74,21 @@ async function transcribe(audio, model_name) {
 
     sendLoadingMessage('success')
 
-    const result = await transcriber(audio, {
-        chunk_length_s: 30,
-        stride_length_s: 5,
-        return_timestamps: true,
-    })
+    let result
+    try {
+        result = await transcriber(audio, {
+            chunk_length_s: 30,
+            stride_length_s: 5,
+            return_timestamps: true,
+        })
+    } catch (err) {
+        console.error(err.message)
+        self.postMessage({
+            type: MessageTypes.ERROR,
+            message: 'Failed to transcribe audio: ' + err.message
+        })
+        return
+    }
 
     const chunks = result?.chunks || [{ text: result?.text || '' }]
 
