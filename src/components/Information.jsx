@@ -6,9 +6,10 @@ export default function Information(props) {
     const { output, finished } = props
     const [tab, setTab] = useState('transcription')
     const [translation, setTranslation] = useState(null)
-    const [toLanguage, setToLanguage] = useState('Select language')
+    const [toLanguage, setToLanguage] = useState('eng_Latn')
+    const [fromLanguage, setFromLanguage] = useState('arb_Arab')
     const [translating, setTranslating] = useState(null)
-    console.log(output)
+    const autoTranslated = useRef(false)
 
     const worker = useRef()
 
@@ -29,7 +30,6 @@ export default function Information(props) {
                     break;
                 case 'update':
                     setTranslation(e.data.output)
-                    console.log(e.data.output)
                     break;
                 case 'complete':
                     setTranslating(false)
@@ -43,7 +43,25 @@ export default function Information(props) {
         return () => worker.current.removeEventListener('message', onMessageReceived)
     })
 
-    const textElement = tab === 'transcription' ? output.map(val => val.text) : translation || ''
+    useEffect(() => {
+        if (finished && output && fromLanguage !== 'eng_Latn' && !autoTranslated.current) {
+            autoTranslated.current = true
+            setTranslating(true)
+            worker.current.postMessage({
+                text: output.map(val => val.text),
+                src_lang: fromLanguage,
+                tgt_lang: 'eng_Latn'
+            })
+        }
+    }, [finished, output, fromLanguage])
+
+    useEffect(() => {
+        if (translation) {
+            setTab('translation')
+        }
+    }, [translation])
+
+    const textElement = tab === 'transcription' ? output.map(val => val.text).join(' ') : translation || ''
 
     function handleCopy() {
         navigator.clipboard.writeText(textElement)
@@ -67,7 +85,7 @@ export default function Information(props) {
 
         worker.current.postMessage({
             text: output.map(val => val.text),
-            src_lang: 'eng_Latn',
+            src_lang: fromLanguage,
             tgt_lang: toLanguage
         })
     }
@@ -92,7 +110,7 @@ export default function Information(props) {
                 {tab === 'transcription' ? (
                     <Transcription {...props} textElement={textElement} />
                 ) : (
-                    <Translation {...props} toLanguage={toLanguage} translating={translating} textElement={textElement} setTranslating={setTranslating} setTranslation={setTranslation} setToLanguage={setToLanguage} generateTranslation={generateTranslation} />
+                    <Translation {...props} toLanguage={toLanguage} fromLanguage={fromLanguage} translating={translating} textElement={textElement} setTranslating={setTranslating} setTranslation={setTranslation} setToLanguage={setToLanguage} setFromLanguage={setFromLanguage} generateTranslation={generateTranslation} />
                 )}
             </div>
             <div className='flex items-center gap-4 mx-auto '>

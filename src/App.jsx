@@ -60,16 +60,78 @@ function App() {
     const sampling_rate = 16000
     const audioCTX = new AudioContext({ sampleRate: sampling_rate })
     const response = await file.arrayBuffer()
-    const decoded = await audioCTX.decodeAudioData(response)
-    const audio = decoded.getChannelData(0)
-    return audio
+
+    try {
+      const decoded = await audioCTX.decodeAudioData(response)
+      return decoded.getChannelData(0)
+    } catch (err) {
+      console.warn('Direct decode failed, using media element fallback:', err.message)
+      audioCTX.close()
+      return await extractAudioViaMediaElement(file, sampling_rate)
+    }
+  }
+
+  async function extractAudioViaMediaElement(file, sampleRate) {
+    return new Promise((resolve, reject) => {
+      const audioEl = new Audio()
+      const url = URL.createObjectURL(file)
+
+      audioEl.onloadedmetadata = async () => {
+        const duration = audioEl.duration
+        const audioCtx = new AudioContext({ sampleRate })
+        const source = audioCtx.createMediaElementSource(audioEl)
+        const dest = audioCtx.createMediaStreamDestination()
+        source.connect(dest)
+
+        const chunks = []
+        const mediaRecorder = new MediaRecorder(dest.stream, { mimeType: 'audio/webm' })
+
+        mediaRecorder.ondataavailable = (e) => {
+          if (e.data.size > 0) chunks.push(e.data)
+        }
+
+        mediaRecorder.onstop = async () => {
+          const audioBlob = new Blob(chunks, { type: 'audio/webm' })
+          const ab = await audioBlob.arrayBuffer()
+          const decoded = await audioCtx.decodeAudioData(ab)
+          source.disconnect()
+          audioCtx.close()
+          URL.revokeObjectURL(url)
+          resolve(decoded.getChannelData(0))
+        }
+
+        const stop = () => {
+          if (mediaRecorder.state === 'recording') mediaRecorder.stop()
+          audioEl.pause()
+        }
+
+        audioEl.onended = stop
+        audioEl.onerror = () => {
+          URL.revokeObjectURL(url)
+          reject(new Error('Failed to extract audio from media file. Try converting to MP3 or WAV.'))
+        }
+
+        mediaRecorder.start()
+        audioEl.play()
+
+        setTimeout(() => { stop() }, (duration + 5) * 1000)
+      }
+
+      audioEl.onerror = () => {
+        URL.revokeObjectURL(url)
+        reject(new Error('Failed to load media file. Try converting to MP3 or WAV.'))
+      }
+
+      audioEl.src = url
+      audioEl.load()
+    })
   }
 
   async function handleFormSubmission() {
     if (!file && !audioStream) { return }
 
     let audio = await readAudioFrom(file ? file : audioStream)
-    const model_name = `openai/whisper-tiny.en`
+    const model_name = `openai/whisper-base`
 
     worker.current.postMessage({
       type: MessageTypes.INFERENCE_REQUEST,

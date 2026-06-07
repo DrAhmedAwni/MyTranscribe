@@ -6,12 +6,13 @@ env.allowLocalModels = false;
 
 class MyTranscriptionPipeline {
     static task = 'automatic-speech-recognition'
-    static model = 'openai/whisper-tiny.en'
+    static model = 'openai/whisper-base'
     static instance = null
 
-    static async getInstance(progress_callback = null) {
+    static async getInstance(progress_callback = null, model_name = null) {
+        const model = model_name || this.model
         if (this.instance === null) {
-            this.instance = await pipeline(this.task, null, { progress_callback })
+            this.instance = await pipeline(this.task, model, { progress_callback })
         }
 
         return this.instance
@@ -19,19 +20,19 @@ class MyTranscriptionPipeline {
 }
 
 self.addEventListener('message', async (event) => {
-    const { type, audio } = event.data
+    const { type, audio, model_name } = event.data
     if (type === MessageTypes.INFERENCE_REQUEST) {
-        await transcribe(audio)
+        await transcribe(audio, model_name)
     }
 })
 
-async function transcribe(audio) {
+async function transcribe(audio, model_name) {
     sendLoadingMessage('loading')
 
     let pipeline
 
     try {
-        pipeline = await MyTranscriptionPipeline.getInstance(load_model_callback)
+        pipeline = await MyTranscriptionPipeline.getInstance(load_model_callback, model_name)
     } catch (err) {
         console.log(err.message)
     }
