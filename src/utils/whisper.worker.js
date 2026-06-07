@@ -42,13 +42,13 @@ class MyTranscriptionPipeline {
 }
 
 self.addEventListener('message', async (event) => {
-    const { type, audio, model_name, language } = event.data
+    const { type, audio, model_name, language, transcription_settings } = event.data
     if (type === MessageTypes.INFERENCE_REQUEST) {
-        await transcribe(audio, model_name, language)
+        await transcribe(audio, model_name, language, transcription_settings)
     }
 })
 
-async function transcribe(audio, model_name, language) {
+async function transcribe(audio, model_name, language, transcription_settings) {
     sendLoadingMessage('loading')
 
     let transcriber
@@ -77,11 +77,11 @@ async function transcribe(audio, model_name, language) {
     let result
     try {
         const options = {
-            chunk_length_s: 30,
-            stride_length_s: 5,
+            chunk_length_s: transcription_settings?.chunk_length_s ?? 20,
+            stride_length_s: transcription_settings?.stride_length_s ?? 4,
             task: 'transcribe',
-            no_repeat_ngram_size: 3,
-            repetition_penalty: 1.15,
+            no_repeat_ngram_size: transcription_settings?.no_repeat_ngram_size ?? 3,
+            repetition_penalty: transcription_settings?.repetition_penalty ?? 1.15,
         }
 
         if (language) {

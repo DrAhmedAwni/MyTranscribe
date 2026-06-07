@@ -82,7 +82,10 @@ function App() {
 
     try {
       const decoded = await audioCTX.decodeAudioData(response)
-      return prepareAudioChannels(decoded)
+      return {
+        audio: prepareAudioChannels(decoded),
+        duration: decoded.duration
+      }
     } catch (err) {
       console.warn('Direct decode failed, using media element fallback:', err.message)
       await audioCTX.close()
@@ -117,7 +120,10 @@ function App() {
             source.disconnect()
             await audioCtx.close()
             URL.revokeObjectURL(url)
-            resolve(prepareAudioChannels(decoded))
+            resolve({
+              audio: prepareAudioChannels(decoded),
+              duration: duration
+            })
           } catch {
             source.disconnect()
             await audioCtx.close()
@@ -161,21 +167,27 @@ function App() {
 
     setStage('decoding')
 
-    let audio
+    let audioData
     try {
-      audio = await readAudioFrom(file ? file : audioStream)
+      audioData = await readAudioFrom(file ? file : audioStream)
     } catch (err) {
       setError(err.message || 'Failed to decode this audio file. Try converting it to MP3 or WAV.')
       setStage('idle')
       return
     }
 
-    const model_name = ModelNames.WHISPER_BASE
+    const duration = audioData.duration || 0
+    const longRecording = duration >= 600
+    const model_name = longRecording ? ModelNames.WHISPER_SMALL : ModelNames.WHISPER_BASE
+    const transcriptionSettings = longRecording
+      ? { chunk_length_s: 15, stride_length_s: 3, no_repeat_ngram_size: 4, repetition_penalty: 1.2 }
+      : { chunk_length_s: 20, stride_length_s: 4, no_repeat_ngram_size: 3, repetition_penalty: 1.15 }
 
     worker.current.postMessage({
       type: MessageTypes.INFERENCE_REQUEST,
-      audio,
+      audio: audioData.audio,
       model_name,
+      transcription_settings: transcriptionSettings,
       language: languageHint === 'auto' ? null : languageHint
     })
   }
