@@ -10,15 +10,21 @@ function App() {
   const [file, setFile] = useState(null)
   const [audioStream, setAudioStream] = useState(null)
   const [output, setOutput] = useState(null)
-  const [downloading, setDownloading] = useState(false)
-  const [loading, setLoading] = useState(false)
+  const [stage, setStage] = useState('idle')
+  const [downloadProgress, setDownloadProgress] = useState(null)
   const [finished, setFinished] = useState(false)
+  const [error, setError] = useState(null)
 
   const isAudioAvailable = file || audioStream
 
   function handleAudioReset() {
     setFile(null)
     setAudioStream(null)
+    setOutput(null)
+    setStage('idle')
+    setDownloadProgress(null)
+    setFinished(false)
+    setError(null)
   }
 
   const worker = useRef(null)
@@ -33,20 +39,31 @@ function App() {
     const onMessageReceived = async (e) => {
       switch (e.data.type) {
         case 'DOWNLOADING':
-          setDownloading(true)
-          console.log('DOWNLOADING')
+          setStage('downloading')
+          setDownloadProgress({
+            file: e.data.file,
+            progress: e.data.progress,
+            loaded: e.data.loaded,
+            total: e.data.total
+          })
           break;
         case 'LOADING':
-          setLoading(true)
-          console.log('LOADING')
+          if (e.data.status === 'success') {
+            setStage('processing')
+          } else {
+            setStage('loading')
+          }
           break;
         case 'RESULT':
           setOutput(e.data.results)
-          console.log(e.data.results)
           break;
         case 'INFERENCE_DONE':
           setFinished(true)
-          console.log("DONE")
+          setStage('done')
+          break;
+        case 'ERROR':
+          setError(e.data.message)
+          setStage('idle')
           break;
       }
     }
@@ -130,8 +147,10 @@ function App() {
   async function handleFormSubmission() {
     if (!file && !audioStream) { return }
 
+    setStage('decoding')
+
     let audio = await readAudioFrom(file ? file : audioStream)
-    const model_name = `openai/whisper-base`
+    const model_name = `Xenova/whisper-base`
 
     worker.current.postMessage({
       type: MessageTypes.INFERENCE_REQUEST,
@@ -140,21 +159,37 @@ function App() {
     })
   }
 
+  const showTranscribing = stage !== 'idle' && stage !== 'done' && !output
+
   return (
-    <div className='flex flex-col max-w-[1000px] mx-auto w-full'>
-      <section className='min-h-screen flex flex-col'>
-        <Header />
-        {output ? (
-          <Information output={output} finished={finished}/>
-        ) : loading ? (
-          <Transcribing />
-        ) : isAudioAvailable ? (
-          <FileDisplay handleFormSubmission={handleFormSubmission} handleAudioReset={handleAudioReset} file={file} audioStream={audioStream} />
-        ) : (
-          <HomePage setFile={setFile} setAudioStream={setAudioStream} />
-        )}
-      </section>
-      <footer></footer>
+    <div className='flex flex-col max-w-[1000px] mx-auto w-full min-h-screen'>
+      {error && (
+        <div className='mx-4 mt-4 p-4 bg-red-50 border border-red-200 rounded-xl'>
+          <div className='flex items-start gap-3'>
+            <i className="fa-solid fa-circle-exclamation text-red-400 mt-0.5"></i>
+            <div className='flex-1'>
+              <p className='text-sm font-semibold text-red-700'>Something went wrong</p>
+              <p className='text-sm text-red-600 mt-1'>{error}</p>
+              <button
+                onClick={() => { setError(null); handleAudioReset(); }}
+                className='mt-2 text-sm font-medium text-red-600 hover:text-red-700 underline'
+              >
+                Try again
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      <Header />
+      {output ? (
+        <Information output={output} finished={finished} stage={stage} />
+      ) : showTranscribing ? (
+        <Transcribing stage={stage} downloadProgress={downloadProgress} />
+      ) : isAudioAvailable && !error ? (
+        <FileDisplay handleFormSubmission={handleFormSubmission} handleAudioReset={handleAudioReset} file={file} audioStream={audioStream} />
+      ) : (
+        <HomePage setFile={setFile} setAudioStream={setAudioStream} />
+      )}
     </div>
   )
 }

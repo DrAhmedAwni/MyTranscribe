@@ -6,7 +6,7 @@ env.allowLocalModels = false;
 
 class MyTranscriptionPipeline {
     static task = 'automatic-speech-recognition'
-    static model = 'openai/whisper-base'
+    static model = 'Xenova/whisper-base'
     static instance = null
 
     static async getInstance(progress_callback = null, model_name = null) {
@@ -34,7 +34,20 @@ async function transcribe(audio, model_name) {
     try {
         pipeline = await MyTranscriptionPipeline.getInstance(load_model_callback, model_name)
     } catch (err) {
-        console.log(err.message)
+        console.error(err.message)
+        self.postMessage({
+            type: MessageTypes.ERROR,
+            message: 'Failed to load AI model: ' + err.message
+        })
+        return
+    }
+
+    if (!pipeline) {
+        self.postMessage({
+            type: MessageTypes.ERROR,
+            message: 'AI model failed to initialize. Try reloading the page.'
+        })
+        return
     }
 
     sendLoadingMessage('success')

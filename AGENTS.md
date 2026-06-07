@@ -32,7 +32,7 @@ There is no test suite and no typecheck step in this project.
 
 - **Client-side ML:** The Whisper model runs entirely in the browser. On first use, `@xenova/transformers` downloads the model from Hugging Face (~145MB for `whisper-base`). This happens in a Web Worker so the UI stays responsive.
 - **Audio input:** Supports mic recording (MediaRecorder, webm) or file upload (`.mp3`, `.wav`, `.mp4`, `.m4a`, `.webm`, `.ogg`). Audio is resampled to 16kHz mono via Web Audio API before inference. For video files that fail direct `decodeAudioData`, a media-element fallback extracts the audio track.
-- **Model:** Uses `openai/whisper-base` (multilingual, supports Arabic + English). The `model_name` is sent from `App.jsx` to the worker.
+- **Model:** Uses `Xenova/whisper-base` (multilingual ONNX, supports Arabic + English). The `model_name` is sent from `App.jsx` to the worker.
 - **App state flow:** `HomePage` (idle) → `FileDisplay` (audio selected) → `Transcribing` (loading) → `Information` (results). State is lifted to `App.jsx`.
 - **No backend:** Fully static SPA. The `public/` dir serves a single `vite.svg`.
 

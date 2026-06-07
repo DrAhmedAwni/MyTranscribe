@@ -3,13 +3,14 @@ import Transcription from './Transcription'
 import Translation from './Translation'
 
 export default function Information(props) {
-    const { output, finished } = props
+    const { output, finished, stage } = props
     const [tab, setTab] = useState('transcription')
     const [translation, setTranslation] = useState(null)
     const [toLanguage, setToLanguage] = useState('eng_Latn')
     const [fromLanguage, setFromLanguage] = useState('arb_Arab')
     const [translating, setTranslating] = useState(null)
     const autoTranslated = useRef(false)
+    const textEndRef = useRef(null)
 
     const worker = useRef()
 
@@ -23,17 +24,14 @@ export default function Information(props) {
         const onMessageReceived = async (e) => {
             switch (e.data.status) {
                 case 'initiate':
-                    console.log('DOWNLOADING')
                     break;
                 case 'progress':
-                    console.log('LOADING')
                     break;
                 case 'update':
                     setTranslation(e.data.output)
                     break;
                 case 'complete':
                     setTranslating(false)
-                    console.log("DONE")
                     break;
             }
         }
@@ -60,6 +58,12 @@ export default function Information(props) {
             setTab('translation')
         }
     }, [translation])
+
+    useEffect(() => {
+        if (textEndRef.current) {
+            textEndRef.current.scrollIntoView({ behavior: 'smooth' })
+        }
+    }, [output])
 
     const textElement = tab === 'transcription' ? output.map(val => val.text).join(' ') : translation || ''
 
@@ -90,36 +94,88 @@ export default function Information(props) {
         })
     }
 
-
-
+    const isLive = stage === 'processing' && !finished
 
     return (
-        <main className='flex-1  p-4 flex flex-col gap-3 text-center sm:gap-4 justify-center pb-20 max-w-prose w-full mx-auto'>
-            <h1 className='font-semibold text-4xl sm:text-5xl md:text-6xl whitespace-nowrap'>Your <span className='text-blue-400 bold'>Transcription</span></h1>
+        <main className='flex-1 flex flex-col items-center px-4 pb-20 pt-2'>
+            <div className='w-full max-w-2xl'>
+                <div className='text-center mb-6'>
+                    <h1 className='font-bold text-3xl sm:text-4xl tracking-tight'>
+                        Your <span className='gradient-text'>Result</span>
+                    </h1>
+                    {isLive && (
+                        <div className='inline-flex items-center gap-2 mt-2 px-3 py-1.5 bg-blue-50 rounded-full'>
+                            <span className='relative flex h-2 w-2'>
+                                <span className='animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75'></span>
+                                <span className='relative inline-flex rounded-full h-2 w-2 bg-blue-500'></span>
+                            </span>
+                            <span className='text-xs font-semibold text-blue-600 tracking-wide'>Transcribing live...</span>
+                        </div>
+                    )}
+                </div>
 
-            <div className='grid grid-cols-2 sm:mx-auto bg-white  rounded overflow-hidden items-center p-1 blueShadow border-[2px] border-solid border-blue-300'>
-                <button onClick={() => setTab('transcription')} className={'px-4 rounded duration-200 py-1 ' + (tab === 'transcription' ? ' bg-blue-300 text-white' : ' text-blue-400 hover:text-blue-600')}>Transcription</button>
-                <button onClick={() => setTab('translation')} className={'px-4 rounded duration-200 py-1  ' + (tab === 'translation' ? ' bg-blue-300 text-white' : ' text-blue-400 hover:text-blue-600')}>Translation</button>
-            </div>
-            <div className='my-8 flex flex-col-reverse max-w-prose w-full mx-auto gap-4'>
-                {(!finished || translating) && (
-                    <div className='grid place-items-center'>
-                        <i className="fa-solid fa-spinner animate-spin"></i>
+                <div className='card overflow-hidden'>
+                    <div className='grid grid-cols-2 bg-slate-50 p-1 rounded-t-2xl'>
+                        <button
+                            onClick={() => setTab('transcription')}
+                            className={'px-4 py-2 rounded-xl text-sm font-medium transition-all duration-200 ' +
+                                (tab === 'transcription'
+                                    ? 'bg-white text-slate-800 shadow-sm'
+                                    : 'text-slate-500 hover:text-slate-700')}
+                        >
+                            Transcription
+                        </button>
+                        <button
+                            onClick={() => setTab('translation')}
+                            className={'px-4 py-2 rounded-xl text-sm font-medium transition-all duration-200 ' +
+                                (tab === 'translation'
+                                    ? 'bg-white text-slate-800 shadow-sm'
+                                    : 'text-slate-500 hover:text-slate-700')}
+                        >
+                            Translation
+                        </button>
                     </div>
-                )}
-                {tab === 'transcription' ? (
-                    <Transcription {...props} textElement={textElement} />
-                ) : (
-                    <Translation {...props} toLanguage={toLanguage} fromLanguage={fromLanguage} translating={translating} textElement={textElement} setTranslating={setTranslating} setTranslation={setTranslation} setToLanguage={setToLanguage} setFromLanguage={setFromLanguage} generateTranslation={generateTranslation} />
-                )}
-            </div>
-            <div className='flex items-center gap-4 mx-auto '>
-                <button onClick={handleCopy} title="Copy" className='bg-white  hover:text-blue-500 duration-200 text-blue-300 px-2 aspect-square grid place-items-center rounded'>
-                    <i className="fa-solid fa-copy"></i>
-                </button>
-                <button onClick={handleDownload} title="Download" className='bg-white  hover:text-blue-500 duration-200 text-blue-300 px-2 aspect-square grid place-items-center rounded'>
-                    <i className="fa-solid fa-download"></i>
-                </button>
+
+                    <div className='p-5 sm:p-6'>
+                        {translating ? (
+                            <div className='flex items-center justify-center py-12'>
+                                <div className='flex flex-col items-center gap-3'>
+                                    <i className="fa-solid fa-spinner animate-spin text-blue-400 text-xl"></i>
+                                    <p className='text-sm text-slate-400'>Translating to English...</p>
+                                </div>
+                            </div>
+                        ) : tab === 'transcription' ? (
+                            <Transcription {...props} textElement={textElement} />
+                        ) : (
+                            <Translation
+                                {...props}
+                                toLanguage={toLanguage}
+                                fromLanguage={fromLanguage}
+                                translating={translating}
+                                textElement={textElement}
+                                setTranslating={setTranslating}
+                                setTranslation={setTranslation}
+                                setToLanguage={setToLanguage}
+                                setFromLanguage={setFromLanguage}
+                                generateTranslation={generateTranslation}
+                            />
+                        )}
+                        <div ref={textEndRef} />
+                    </div>
+
+                    {finished && !translating && textElement && (
+                        <div className='flex items-center justify-center gap-2 p-4 border-t border-slate-100 bg-slate-50/50 rounded-b-2xl'>
+                            <button onClick={handleCopy} className='flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-medium text-slate-500 hover:text-blue-600 hover:bg-blue-50 transition-all duration-200'>
+                                <i className="fa-solid fa-copy"></i>
+                                Copy
+                            </button>
+                            <button onClick={handleDownload} className='flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-medium text-slate-500 hover:text-blue-600 hover:bg-blue-50 transition-all duration-200'>
+                                <i className="fa-solid fa-download"></i>
+                                Download
+                            </button>
+                        </div>
+                    )}
+                </div>
             </div>
         </main>
     )

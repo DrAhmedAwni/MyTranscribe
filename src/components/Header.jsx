@@ -1,17 +1,14 @@
-import React from 'react'
-
 export default function Header() {
     return (
-        <header className='flex items-center justify-between gap-4 p-4'>
-            <a href="/"><h1 className='font-medium'>Free<span className='text-blue-400 bold'>Script</span></h1></a>
-            <div className='gap-4 flex items-center '>
-                <a href="/" className='flex items-center gap-2 specialBtn px-3 py-2 rounded-lg text-blue-400'>
-                    <p className='font-semibold'>New</p>
-                    <i className="fa-solid fa-plus"></i>
-                </a>
-                <div><a href="https://pk.linkedin.com/in/saadkhaleeq610"><button className='flex items-center gap-2 specialBtn px-3 py-2 rounded-lg text-blue-400 font-semibold'>My LinkedIn</button></a>
+        <header className='flex items-center justify-center p-5 sm:p-6'>
+            <a href="/" className='flex items-center gap-2.5 group'>
+                <div className='w-9 h-9 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center shadow-md shadow-blue-500/25 group-hover:shadow-lg group-hover:shadow-blue-500/30 transition-all duration-200'>
+                    <i className="fa-solid fa-microphone text-white text-sm"></i>
                 </div>
-            </div>
+                <h1 className='font-bold text-xl tracking-tight'>
+                    Free<span className='gradient-text'>Script</span>
+                </h1>
+            </a>
         </header>
     )
 }
