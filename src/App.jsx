@@ -9,6 +9,7 @@ import { MessageTypes, ModelNames } from './utils/presets'
 function App() {
   const [file, setFile] = useState(null)
   const [audioStream, setAudioStream] = useState(null)
+  const [languageHint, setLanguageHint] = useState('auto')
   const [output, setOutput] = useState(null)
   const [stage, setStage] = useState('idle')
   const [downloadProgress, setDownloadProgress] = useState(null)
@@ -20,6 +21,7 @@ function App() {
   function handleAudioReset() {
     setFile(null)
     setAudioStream(null)
+    setLanguageHint('auto')
     setOutput(null)
     setStage('idle')
     setDownloadProgress(null)
@@ -80,7 +82,7 @@ function App() {
 
     try {
       const decoded = await audioCTX.decodeAudioData(response)
-      return decoded.getChannelData(0)
+      return prepareAudioChannels(decoded)
     } catch (err) {
       console.warn('Direct decode failed, using media element fallback:', err.message)
       await audioCTX.close()
@@ -115,7 +117,7 @@ function App() {
             source.disconnect()
             await audioCtx.close()
             URL.revokeObjectURL(url)
-            resolve(decoded.getChannelData(0))
+            resolve(prepareAudioChannels(decoded))
           } catch {
             source.disconnect()
             await audioCtx.close()
@@ -168,13 +170,41 @@ function App() {
       return
     }
 
-    const model_name = ModelNames.WHISPER_TINY
+    const model_name = ModelNames.WHISPER_BASE
 
     worker.current.postMessage({
       type: MessageTypes.INFERENCE_REQUEST,
       audio,
-      model_name
+      model_name,
+      language: languageHint === 'auto' ? null : languageHint
     })
+  }
+
+  function prepareAudioChannels(audioBuffer) {
+    const channels = audioBuffer.numberOfChannels
+    const samples = audioBuffer.length
+    const audio = new Float32Array(samples)
+
+    for (let channel = 0; channel < channels; channel++) {
+      const channelData = audioBuffer.getChannelData(channel)
+      for (let i = 0; i < samples; i++) {
+        audio[i] += channelData[i] / channels
+      }
+    }
+
+    let peak = 0
+    for (let i = 0; i < audio.length; i++) {
+      peak = Math.max(peak, Math.abs(audio[i]))
+    }
+
+    if (peak > 0 && peak < 0.95) {
+      const gain = Math.min(0.95 / peak, 10)
+      for (let i = 0; i < audio.length; i++) {
+        audio[i] *= gain
+      }
+    }
+
+    return audio
   }
 
   const showTranscribing = stage !== 'idle' && stage !== 'done' && !output
@@ -204,7 +234,14 @@ function App() {
       ) : showTranscribing ? (
         <Transcribing stage={stage} downloadProgress={downloadProgress} />
       ) : isAudioAvailable && !error ? (
-        <FileDisplay handleFormSubmission={handleFormSubmission} handleAudioReset={handleAudioReset} file={file} audioStream={audioStream} />
+        <FileDisplay
+          handleFormSubmission={handleFormSubmission}
+          handleAudioReset={handleAudioReset}
+          file={file}
+          audioStream={audioStream}
+          languageHint={languageHint}
+          setLanguageHint={setLanguageHint}
+        />
       ) : (
         <HomePage setFile={setFile} setAudioStream={setAudioStream} />
       )}

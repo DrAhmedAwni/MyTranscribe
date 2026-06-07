@@ -28,7 +28,7 @@ console.error = (...args) => {
 
 class MyTranscriptionPipeline {
     static task = 'automatic-speech-recognition'
-    static model = 'Xenova/whisper-tiny'
+    static model = 'Xenova/whisper-base'
     static instance = null
 
     static async getInstance(progress_callback = null, model_name = null) {
@@ -42,13 +42,13 @@ class MyTranscriptionPipeline {
 }
 
 self.addEventListener('message', async (event) => {
-    const { type, audio, model_name } = event.data
+    const { type, audio, model_name, language } = event.data
     if (type === MessageTypes.INFERENCE_REQUEST) {
-        await transcribe(audio, model_name)
+        await transcribe(audio, model_name, language)
     }
 })
 
-async function transcribe(audio, model_name) {
+async function transcribe(audio, model_name, language) {
     sendLoadingMessage('loading')
 
     let transcriber
@@ -76,10 +76,19 @@ async function transcribe(audio, model_name) {
 
     let result
     try {
-        result = await transcriber(audio, {
+        const options = {
             chunk_length_s: 30,
             stride_length_s: 5,
-        })
+            task: 'transcribe',
+            no_repeat_ngram_size: 3,
+            repetition_penalty: 1.15,
+        }
+
+        if (language) {
+            options.language = language
+        }
+
+        result = await transcriber(audio, options)
     } catch (err) {
         console.error(err.message)
         self.postMessage({

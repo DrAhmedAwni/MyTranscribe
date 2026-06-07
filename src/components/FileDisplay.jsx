@@ -1,7 +1,7 @@
 import React, { useRef, useEffect } from 'react'
 
 export default function FileDisplay(props) {
-    const { handleAudioReset, file, audioStream, handleFormSubmission } = props
+    const { handleAudioReset, file, audioStream, handleFormSubmission, languageHint, setLanguageHint } = props
     const audioRef = useRef()
 
     useEffect(() => {
@@ -32,6 +32,19 @@ export default function FileDisplay(props) {
                 <audio ref={audioRef} className='w-full' controls>
                     Your browser does not support the audio element.
                 </audio>
+
+                <label className='block space-y-2'>
+                    <span className='text-xs font-medium text-slate-400 uppercase tracking-wider'>Language</span>
+                    <select
+                        value={languageHint}
+                        onChange={(e) => setLanguageHint(e.target.value)}
+                        className='w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-medium text-slate-700 outline-none transition-colors duration-200 focus:border-blue-300 focus:ring-2 focus:ring-blue-100'
+                    >
+                        <option value='auto'>Auto: Arabic + English</option>
+                        <option value='arabic'>Arabic focus</option>
+                        <option value='english'>English focus</option>
+                    </select>
+                </label>
 
                 <div className='flex items-center justify-between gap-4'>
                     <button onClick={handleAudioReset} className='text-sm text-slate-400 hover:text-slate-600 transition-colors duration-200'>
